@@ -111,7 +111,7 @@
         <div class="field">
           <label>Foto do QR Code</label>
           <div class="upload-box">📷 Enviar QR Code<input type="file" accept="image/*" onchange="uploadImagem(event,'qrcode')"></div>
-          <img id="preview-qrcode" class="upload-preview" style="display:none;">
+          <img id="preview-qrcode" class="upload-preview-qr" style="display:none;">
         </div>
       </div>
     </div>
@@ -270,12 +270,24 @@ async function salvarEvento(){
 }
 
 // ---------- UPLOAD DE IMAGENS ----------
+function limparNomeArquivo(nome){
+  const partes = nome.split('.');
+  const extensao = partes.length > 1 ? partes.pop().toLowerCase().replace(/[^a-z0-9]/g,'') : 'jpg';
+  const base = partes.join('.')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // tira acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g,'-') // troca espaço/símbolo por hífen
+    .replace(/^-+|-+$/g,'')
+    .slice(0,40);
+  return `${base || 'imagem'}.${extensao || 'jpg'}`;
+}
+
 async function uploadImagem(evt, tipo){
   const file = evt.target.files[0];
   if(!file) return;
-  const nomeArquivo = `${tipo}-${Date.now()}-${file.name}`;
+  const nomeArquivo = `${tipo}-${Date.now()}-${limparNomeArquivo(file.name)}`;
   const { error } = await supabaseClient.storage.from(BUCKET).upload(nomeArquivo, file);
-  if(error){ mostrarToast('Erro no upload.'); return; }
+  if(error){ mostrarToast('Erro no upload: ' + error.message); return; }
   const { data } = supabaseClient.storage.from(BUCKET).getPublicUrl(nomeArquivo);
   uploads[tipo] = data.publicUrl;
   const preview = document.getElementById(`preview-${tipo}`);
