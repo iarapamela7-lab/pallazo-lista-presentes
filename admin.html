@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel · Pallazo Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">PALLAZO <span>STUDIO</span></div>
+  <div class="nav-right" id="user-info" style="display:none;">
+    <span id="user-email"></span>
+    <button onclick="sair()">Sair</button>
+  </div>
+</nav>
+
+<!-- TELA DE LOGIN -->
+<div class="wrap" id="tela-login" style="max-width:360px; padding-top:80px;">
+  <div class="card">
+    <h1 style="font-size:20px; margin-bottom:18px; text-align:center;">Entrar no painel</h1>
+    <div class="field"><label>E-mail</label><input type="email" id="login-email"></div>
+    <div class="field"><label>Senha</label><input type="password" id="login-senha"></div>
+    <button class="btn" style="width:100%" onclick="fazerLogin()">Entrar</button>
+    <p id="login-erro" style="color:#B8483F; font-size:12.5px; margin-top:10px; text-align:center;"></p>
+  </div>
+</div>
+
+<!-- TELA: LISTA DE EVENTOS -->
+<div class="wrap" id="tela-eventos" style="display:none;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px;">
+    <div>
+      <h1 style="font-size:24px;">Seus eventos</h1>
+      <p style="color:var(--sub); font-size:13px; margin-top:4px;">Crie uma lista, personalize e acompanhe os presentes.</p>
+    </div>
+    <button class="btn" onclick="abrirNovoEvento()">+ Novo evento</button>
+  </div>
+  <div class="event-grid" id="lista-eventos"><div class="loading">Carregando eventos…</div></div>
+</div>
+
+<!-- TELA: EDITAR EVENTO -->
+<div class="wrap" id="tela-evento" style="display:none;">
+  <button class="btn-outline" onclick="voltarParaEventos()" style="margin-bottom:18px;">← Voltar</button>
+
+  <div class="section-title">Dados do evento</div>
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Nome do evento</label><input id="ev-nome"></div>
+      <div class="field"><label>Frase de recepção</label><input id="ev-mensagem"></div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Imagem de capa</label>
+        <div class="upload-box" id="box-capa">
+          📷 Clique para enviar (tipo capa de Facebook, 1200×400)
+          <input type="file" accept="image/*" onchange="uploadImagem(event,'capa')">
+        </div>
+        <img id="preview-capa" class="upload-preview" style="display:none;">
+      </div>
+      <div class="field">
+        <label>Fonte do título</label>
+        <select id="ev-fonte">
+          <option value="Fraunces">Fraunces (elegante serifada)</option>
+          <option value="Playfair Display">Playfair Display</option>
+          <option value="Poppins">Poppins</option>
+        </select>
+        <label style="margin-top:12px;">Cor principal</label>
+        <div class="hex-picker" style="margin-top:6px;">
+          <input type="color" id="ev-cor1-color" value="#5B6E4F" oninput="document.getElementById('ev-cor1').value=this.value">
+          <input type="text" id="ev-cor1" value="#5B6E4F" oninput="document.getElementById('ev-cor1-color').value=this.value">
+        </div>
+        <label style="margin-top:12px;">Cor secundária</label>
+        <div class="hex-picker" style="margin-top:6px;">
+          <input type="color" id="ev-cor2-color" value="#E8E2D4" oninput="document.getElementById('ev-cor2').value=this.value">
+          <input type="text" id="ev-cor2" value="#E8E2D4" oninput="document.getElementById('ev-cor2-color').value=this.value">
+        </div>
+      </div>
+    </div>
+    <button class="btn" onclick="salvarEvento()">Salvar evento</button>
+  </div>
+
+  <div class="section-title">Links (compartilhe com anfitrião e convidados)</div>
+  <div class="card" id="caixa-links" style="display:flex; gap:10px;"></div>
+
+  <div class="section-title">Adicionar presente</div>
+  <div class="card">
+    <div class="type-toggle">
+      <div class="type-opt selected" id="opt-reserva" onclick="setTipo('reserva')">🎁 Reserva com nome + WhatsApp</div>
+      <div class="type-opt" id="opt-pix" onclick="setTipo('pix')">💳 Contribuição via Pix</div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Nome do presente</label><input id="pr-nome" placeholder="Ex: Jogo de panelas Tramontina"></div>
+      <div class="field"><label>Valor (opcional)</label><input id="pr-valor" placeholder="Ex: R$ 450,00"></div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Foto do presente</label>
+        <div class="upload-box">📷 Enviar foto<input type="file" accept="image/*" onchange="uploadImagem(event,'presente')"></div>
+        <img id="preview-presente" class="upload-preview" style="display:none;">
+      </div>
+      <div class="field"><label>Fraseinha (opcional)</label><input id="pr-frase" placeholder="Ex: Pra fazer aquele feijão de domingo"></div>
+    </div>
+    <div id="campos-pix" style="display:none;">
+      <div class="form-row">
+        <div class="field"><label>Chave Pix (copia e cola)</label><input id="pr-pixchave" placeholder="Ex: email@banco.com ou telefone"></div>
+        <div class="field">
+          <label>Foto do QR Code</label>
+          <div class="upload-box">📷 Enviar QR Code<input type="file" accept="image/*" onchange="uploadImagem(event,'qrcode')"></div>
+          <img id="preview-qrcode" class="upload-preview" style="display:none;">
+        </div>
+      </div>
+    </div>
+    <button class="btn" onclick="salvarPresente()">Salvar presente</button>
+  </div>
+
+  <div class="section-title">Presentes cadastrados</div>
+  <div id="lista-presentes"><div class="empty">Nenhum presente ainda.</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let usuario = null;
+let eventoAtual = null;
+let tipoSelecionado = 'reserva';
+let uploads = { capa:null, presente:null, qrcode:null };
+
+function mostrarToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+// ---------- AUTH ----------
+async function verificarSessao(){
+  const { data } = await supabaseClient.auth.getSession();
+  if(data.session){
+    usuario = data.session.user;
+    document.getElementById('user-email').textContent = usuario.email;
+    document.getElementById('user-info').style.display = 'flex';
+    document.getElementById('tela-login').style.display = 'none';
+    document.getElementById('tela-eventos').style.display = 'block';
+    carregarEventos();
+  } else {
+    document.getElementById('tela-login').style.display = 'block';
+  }
+}
+
+async function fazerLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
+  if(error){
+    document.getElementById('login-erro').textContent = 'E-mail ou senha incorretos.';
+    return;
+  }
+  location.reload();
+}
+
+async function sair(){
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
+// ---------- EVENTOS ----------
+function gerarSlug(){
+  return Math.random().toString(36).substring(2, 9);
+}
+
+async function carregarEventos(){
+  const cont = document.getElementById('lista-eventos');
+  const { data: eventos, error } = await supabaseClient.from('eventos').select('*').order('criado_em', { ascending:false });
+  if(error){ cont.innerHTML = '<div class="empty">Erro ao carregar eventos.</div>'; return; }
+  if(!eventos.length){ cont.innerHTML = '<div class="empty">Nenhum evento criado ainda. Clique em "+ Novo evento".</div>'; return; }
+
+  cont.innerHTML = '';
+  for(const ev of eventos){
+    const { count: total } = await supabaseClient.from('presentes').select('*', { count:'exact', head:true }).eq('evento_id', ev.id);
+    const { count: escolhidos } = await supabaseClient.from('presentes').select('*', { count:'exact', head:true }).eq('evento_id', ev.id).neq('status','disponivel');
+    const pct = total ? Math.round((escolhidos/total)*100) : 0;
+
+    const div = document.createElement('div');
+    div.className = 'event-card';
+    div.innerHTML = `
+      <div class="event-cover" style="background-image:url('${ev.imagem_capa_url||''}')"></div>
+      <div class="event-body">
+        <h3>${ev.nome_evento}</h3>
+        <div class="event-meta">${total||0} presentes · ${escolhidos||0} escolhidos</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="event-links">
+          <button class="link-chip" onclick="abrirEditor('${ev.id}')">✏️ Editar</button>
+          <button class="link-chip" onclick="event.stopPropagation(); copiarLink('${ev.slug_anfitriao}','anfitriao')">🔗 anfitrião</button>
+          <button class="link-chip" onclick="event.stopPropagation(); copiarLink('${ev.slug_convidados}','convidados')">🔗 convidados</button>
+        </div>
+      </div>`;
+    cont.appendChild(div);
+  }
+}
+
+function copiarLink(slug, tipo){
+  const url = `${location.origin}${location.pathname.replace('admin.html','')}${tipo}.html?e=${slug}`;
+  navigator.clipboard.writeText(url);
+  mostrarToast('Link copiado: ' + url);
+}
+
+async function abrirNovoEvento(){
+  const { data, error } = await supabaseClient.from('eventos').insert({
+    nome_evento: 'Novo evento',
+    slug_convidados: gerarSlug(),
+    slug_anfitriao: gerarSlug()
+  }).select().single();
+  if(error){ mostrarToast('Erro ao criar evento.'); return; }
+  abrirEditor(data.id);
+}
+
+async function abrirEditor(id){
+  const { data: ev } = await supabaseClient.from('eventos').select('*').eq('id', id).single();
+  eventoAtual = ev;
+  document.getElementById('tela-eventos').style.display = 'none';
+  document.getElementById('tela-evento').style.display = 'block';
+
+  document.getElementById('ev-nome').value = ev.nome_evento || '';
+  document.getElementById('ev-mensagem').value = ev.mensagem || '';
+  document.getElementById('ev-fonte').value = ev.fonte || 'Fraunces';
+  document.getElementById('ev-cor1').value = ev.cor_primaria || '#5B6E4F';
+  document.getElementById('ev-cor1-color').value = ev.cor_primaria || '#5B6E4F';
+  document.getElementById('ev-cor2').value = ev.cor_secundaria || '#E8E2D4';
+  document.getElementById('ev-cor2-color').value = ev.cor_secundaria || '#E8E2D4';
+  uploads = { capa: ev.imagem_capa_url, presente:null, qrcode:null };
+  if(ev.imagem_capa_url){
+    document.getElementById('preview-capa').src = ev.imagem_capa_url;
+    document.getElementById('preview-capa').style.display = 'block';
+  } else {
+    document.getElementById('preview-capa').style.display = 'none';
+  }
+
+  const base = `${location.origin}${location.pathname.replace('admin.html','')}`;
+  document.getElementById('caixa-links').innerHTML = `
+    <div style="flex:1"><label style="font-size:12px;font-weight:600;">Link do anfitrião</label>
+      <div class="field"><input readonly value="${base}anfitriao.html?e=${ev.slug_anfitriao}"></div></div>
+    <div style="flex:1"><label style="font-size:12px;font-weight:600;">Link dos convidados</label>
+      <div class="field"><input readonly value="${base}convidados.html?e=${ev.slug_convidados}"></div></div>
+  `;
+
+  carregarPresentes();
+}
+
+function voltarParaEventos(){
+  document.getElementById('tela-evento').style.display = 'none';
+  document.getElementById('tela-eventos').style.display = 'block';
+  carregarEventos();
+}
+
+async function salvarEvento(){
+  const upd = {
+    nome_evento: document.getElementById('ev-nome').value,
+    mensagem: document.getElementById('ev-mensagem').value,
+    fonte: document.getElementById('ev-fonte').value,
+    cor_primaria: document.getElementById('ev-cor1').value,
+    cor_secundaria: document.getElementById('ev-cor2').value,
+  };
+  if(uploads.capa) upd.imagem_capa_url = uploads.capa;
+  const { error } = await supabaseClient.from('eventos').update(upd).eq('id', eventoAtual.id);
+  mostrarToast(error ? 'Erro ao salvar.' : 'Evento salvo!');
+}
+
+// ---------- UPLOAD DE IMAGENS ----------
+async function uploadImagem(evt, tipo){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const nomeArquivo = `${tipo}-${Date.now()}-${file.name}`;
+  const { error } = await supabaseClient.storage.from(BUCKET).upload(nomeArquivo, file);
+  if(error){ mostrarToast('Erro no upload.'); return; }
+  const { data } = supabaseClient.storage.from(BUCKET).getPublicUrl(nomeArquivo);
+  uploads[tipo] = data.publicUrl;
+  const preview = document.getElementById(`preview-${tipo}`);
+  preview.src = data.publicUrl;
+  preview.style.display = 'block';
+  mostrarToast('Imagem enviada!');
+}
+
+// ---------- PRESENTES ----------
+function setTipo(tipo){
+  tipoSelecionado = tipo;
+  document.getElementById('opt-reserva').classList.toggle('selected', tipo==='reserva');
+  document.getElementById('opt-pix').classList.toggle('selected', tipo==='pix');
+  document.getElementById('campos-pix').style.display = tipo==='pix' ? 'block' : 'none';
+}
+
+async function salvarPresente(){
+  const nome = document.getElementById('pr-nome').value.trim();
+  if(!nome){ mostrarToast('Dê um nome ao presente.'); return; }
+
+  const novo = {
+    evento_id: eventoAtual.id,
+    nome,
+    valor: document.getElementById('pr-valor').value,
+    descricao: document.getElementById('pr-frase').value,
+    foto_url: uploads.presente,
+    tipo: tipoSelecionado,
+  };
+  if(tipoSelecionado === 'pix'){
+    novo.pix_chave = document.getElementById('pr-pixchave').value;
+    novo.pix_qrcode_url = uploads.qrcode;
+  }
+
+  const { error } = await supabaseClient.from('presentes').insert(novo);
+  if(error){ mostrarToast('Erro ao salvar presente.'); return; }
+
+  document.getElementById('pr-nome').value = '';
+  document.getElementById('pr-valor').value = '';
+  document.getElementById('pr-frase').value = '';
+  document.getElementById('pr-pixchave').value = '';
+  uploads.presente = null; uploads.qrcode = null;
+  document.getElementById('preview-presente').style.display = 'none';
+  document.getElementById('preview-qrcode').style.display = 'none';
+  mostrarToast('Presente adicionado!');
+  carregarPresentes();
+}
+
+async function carregarPresentes(){
+  const cont = document.getElementById('lista-presentes');
+  const { data: presentes, error } = await supabaseClient.from('presentes').select('*').eq('evento_id', eventoAtual.id).order('criado_em');
+  if(error || !presentes.length){ cont.innerHTML = '<div class="empty">Nenhum presente ainda.</div>'; return; }
+
+  cont.innerHTML = '';
+  for(const p of presentes){
+    const div = document.createElement('div');
+    div.className = 'gift-row';
+    const statusLabel = { disponivel:'Livre', reservado:'Reservado', pago:'Recebido' }[p.status];
+    div.innerHTML = `
+      <div class="gift-thumb" style="background-image:url('${p.foto_url||''}')"></div>
+      <div class="gift-info">
+        <div class="name">${p.nome}</div>
+        <div class="who">${p.tipo==='pix'?'Contribuição via Pix':'Reserva'} ${p.valor?('· '+p.valor):''}</div>
+      </div>
+      <div class="status-pill status-${p.status}">${statusLabel}</div>
+      <button class="btn-danger" onclick="excluirPresente('${p.id}')">Excluir</button>
+    `;
+    cont.appendChild(div);
+  }
+}
+
+async function excluirPresente(id){
+  if(!confirm('Excluir este presente?')) return;
+  await supabaseClient.from('presentes').delete().eq('id', id);
+  carregarPresentes();
+}
+
+verificarSessao();
+</script>
+</body>
+</html>

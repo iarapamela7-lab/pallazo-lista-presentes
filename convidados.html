@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista de presentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;1,400&family=Playfair+Display:wght@500;600&family=Poppins:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Inter',sans-serif; min-height:100vh; background:#F7F6F3;}
+  .guest-cover{height:230px; background-size:cover; background-position:center; display:flex; align-items:flex-end; padding:26px; position:relative;}
+  .guest-cover::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.45) 100%);}
+  .guest-cover-text{position:relative; z-index:1; color:#fff;}
+  .guest-cover-text .eyebrow{font-size:11.5px; text-transform:uppercase; letter-spacing:.15em; opacity:.85;}
+  .guest-cover-text h1{font-size:34px; font-weight:500; margin-top:4px;}
+  .guest-body{padding:28px 20px 50px;}
+  .guest-msg{max-width:520px; margin:0 auto 26px; text-align:center; font-size:15.5px; font-style:italic; line-height:1.5;}
+  .guest-grid{max-width:560px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .guest-card{background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.05);}
+  .guest-card-img{height:110px; background-size:cover; background-position:center; background-color:#eee;}
+  .guest-card-body{padding:12px 14px 14px;}
+  .guest-card-body .name{font-size:14.5px; font-weight:500;}
+  .guest-card-body .price{font-size:12px; color:#8b877e; margin:2px 0 10px;}
+  .guest-btn{width:100%; padding:9px; border-radius:8px; border:none; color:#fff; font-size:12.5px; font-weight:600; cursor:pointer;}
+  .guest-btn.taken{background:#DCD8CC !important; color:#9b9689; cursor:default;}
+  .guest-footer{text-align:center; margin-top:32px; font-size:11px; color:#8b877e;}
+  .guest-footer b{font-weight:600;}
+  .empty, .loading{text-align:center; padding:60px 20px; color:#8A8680; font-size:13.5px;}
+
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:200; padding:20px;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:#fff; border-radius:14px; padding:22px; max-width:320px; width:100%;}
+  .modal h4{font-size:15px; margin-bottom:14px; text-align:center;}
+  .modal input{width:100%; padding:9px 10px; border:1px solid #e2ddd0; border-radius:7px; font-size:12.5px; margin-bottom:10px; font-family:'Inter',sans-serif;}
+  .modal-close{display:block; margin:12px auto 0; background:none; border:none; color:#8A8680; font-size:12.5px; cursor:pointer;}
+  .qr-preview{width:170px; height:170px; object-fit:cover; border-radius:8px; margin:0 auto 12px; display:block; background:#eee;}
+  .pix-key{font-family:monospace; font-size:11.5px; background:#F4F1E8; padding:9px 10px; border-radius:7px; text-align:center; word-break:break-all; margin-bottom:10px;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#1C1B19; color:#fff; padding:11px 20px; border-radius:100px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:999;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="conteudo"><div class="loading">Carregando lista de presentes…</div></div>
+
+<div class="modal-overlay" id="modal-reserva">
+  <div class="modal">
+    <h4 id="modal-reserva-titulo">Reservar presente</h4>
+    <input id="rv-nome" placeholder="Seu nome">
+    <input id="rv-whatsapp" placeholder="Seu WhatsApp">
+    <button class="guest-btn" id="btn-confirmar-reserva">Confirmar escolha</button>
+    <button class="modal-close" onclick="fecharModais()">Cancelar</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pix">
+  <div class="modal">
+    <h4 id="modal-pix-titulo">Pix</h4>
+    <img class="qr-preview" id="pix-qr">
+    <div class="pix-key" id="pix-chave"></div>
+    <button class="guest-btn" id="btn-copiar-pix">Copiar chave Pix</button>
+    <button class="modal-close" onclick="fecharModais()">Fechar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let presenteAtualId = null;
+
+function mostrarToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+function fecharModais(){
+  document.getElementById('modal-reserva').classList.remove('show');
+  document.getElementById('modal-pix').classList.remove('show');
+}
+
+async function carregar(){
+  const params = new URLSearchParams(location.search);
+  const slug = params.get('e');
+  const cont = document.getElementById('conteudo');
+  if(!slug){ cont.innerHTML = '<div class="empty">Link inválido.</div>'; return; }
+
+  const { data, error } = await supabaseClient.rpc('get_lista_convidados', { p_slug: slug });
+
+  if(error || !data || !data.length){
+    cont.innerHTML = '<div class="empty">Não encontramos essa lista. Confira o link com quem te enviou.</div>';
+    return;
+  }
+
+  const info = data[0];
+  const corPrimaria = info.cor_primaria || '#5B6E4F';
+  const corSecundaria = info.cor_secundaria || '#E8E2D4';
+  const fonte = info.fonte || 'Fraunces';
+
+  let html = `
+    <div class="guest-cover" style="background-image:url('${info.imagem_capa_url||''}')">
+      <div class="guest-cover-text">
+        <div class="eyebrow">Lista de presentes</div>
+        <h1 style="font-family:'${fonte}',serif;">${info.nome_evento}</h1>
+      </div>
+    </div>
+    <div class="guest-body" style="background:${corSecundaria};">
+      ${info.mensagem ? `<p class="guest-msg" style="font-family:'${fonte}',serif; color:#2B2A26;">"${info.mensagem}"</p>` : ''}
+      <div class="guest-grid">
+  `;
+
+  for(const p of data){
+    const disponivel = p.status === 'disponivel';
+    const acaoLabel = p.tipo === 'pix' ? 'Ver Pix' : (disponivel ? 'Escolher' : 'Já escolhido');
+    html += `
+      <div class="guest-card">
+        <div class="guest-card-img" style="background-image:url('${p.foto_url||''}')"></div>
+        <div class="guest-card-body">
+          <div class="name" style="font-family:'${fonte}',serif;">${p.presente_nome}</div>
+          <div class="price">${p.valor || (p.tipo==='pix' ? 'Contribua com qualquer valor' : '')}</div>
+          <button class="guest-btn ${!disponivel && p.tipo!=='pix' ? 'taken':''}"
+            style="${disponivel || p.tipo==='pix' ? `background:${corPrimaria}` : ''}"
+            ${(!disponivel && p.tipo!=='pix') ? 'disabled' : ''}
+            onclick='abrirAcao(${JSON.stringify(p)})'>
+            ${acaoLabel}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  html += `</div>
+      <div class="guest-footer">feito com 💛 por <b>Pallazo Studio</b></div>
+    </div>`;
+
+  cont.innerHTML = html;
+}
+
+function abrirAcao(presente){
+  presenteAtualId = presente.presente_id;
+  if(presente.tipo === 'pix'){
+    document.getElementById('modal-pix-titulo').textContent = 'Pix — ' + presente.presente_nome;
+    document.getElementById('pix-qr').src = presente.pix_qrcode_url || '';
+    document.getElementById('pix-chave').textContent = presente.pix_chave || '';
+    document.getElementById('modal-pix').classList.add('show');
+  } else {
+    if(presente.status !== 'disponivel') return;
+    document.getElementById('modal-reserva-titulo').textContent = 'Reservar "' + presente.presente_nome + '"';
+    document.getElementById('rv-nome').value = '';
+    document.getElementById('rv-whatsapp').value = '';
+    document.getElementById('modal-reserva').classList.add('show');
+  }
+}
+
+document.getElementById('btn-copiar-pix').addEventListener('click', ()=>{
+  const chave = document.getElementById('pix-chave').textContent;
+  navigator.clipboard.writeText(chave);
+  mostrarToast('Chave Pix copiada!');
+});
+
+document.getElementById('btn-confirmar-reserva').addEventListener('click', async ()=>{
+  const nome = document.getElementById('rv-nome').value.trim();
+  const whatsapp = document.getElementById('rv-whatsapp').value.trim();
+  if(!nome || !whatsapp){ mostrarToast('Preencha nome e WhatsApp.'); return; }
+
+  const { data, error } = await supabaseClient.rpc('reservar_presente', {
+    p_presente_id: presenteAtualId, p_nome: nome, p_whatsapp: whatsapp
+  });
+
+  if(error || data === false){
+    mostrarToast('Ops, alguém acabou de escolher esse presente.');
+  } else {
+    mostrarToast('Presente reservado! Obrigado 💛');
+  }
+  fecharModais();
+  carregar();
+});
+
+carregar();
+</script>
+</body>
+</html>
