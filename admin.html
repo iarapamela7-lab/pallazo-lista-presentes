@@ -105,6 +105,18 @@
       </div>
       <div class="field"><label>Fraseinha (opcional)</label><input id="pr-frase" placeholder="Ex: Pra fazer aquele feijão de domingo"></div>
     </div>
+    <div id="bloco-quantidade">
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:14px; cursor:pointer;">
+        <input type="checkbox" id="pr-multiplas" onchange="document.getElementById('campos-quantidade').style.display = this.checked ? 'block' : 'none'" style="width:auto;">
+        Múltiplas unidades? (ex: 15 pacotes de fralda M)
+      </label>
+      <div id="campos-quantidade" style="display:none; margin-bottom:14px;">
+        <div class="field" style="max-width:200px;">
+          <label>Quantidade total de unidades</label>
+          <input id="pr-quantidade" type="number" min="1" placeholder="Ex: 15">
+        </div>
+      </div>
+    </div>
     <div id="campos-pix" style="display:none;">
       <div class="form-row">
         <div class="field"><label>Chave Pix (copia e cola)</label><input id="pr-pixchave" placeholder="Ex: email@banco.com ou telefone"></div>
@@ -302,6 +314,11 @@ function setTipo(tipo){
   document.getElementById('opt-reserva').classList.toggle('selected', tipo==='reserva');
   document.getElementById('opt-pix').classList.toggle('selected', tipo==='pix');
   document.getElementById('campos-pix').style.display = tipo==='pix' ? 'block' : 'none';
+  document.getElementById('bloco-quantidade').style.display = tipo==='pix' ? 'none' : 'block';
+  if(tipo==='pix'){
+    document.getElementById('pr-multiplas').checked = false;
+    document.getElementById('campos-quantidade').style.display = 'none';
+  }
 }
 
 async function salvarPresente(){
@@ -315,7 +332,12 @@ async function salvarPresente(){
     descricao: document.getElementById('pr-frase').value,
     foto_url: uploads.presente,
     tipo: tipoSelecionado,
+    quantidade_total: 1,
   };
+  if(tipoSelecionado === 'reserva' && document.getElementById('pr-multiplas').checked){
+    const qtd = parseInt(document.getElementById('pr-quantidade').value, 10);
+    novo.quantidade_total = (qtd && qtd > 0) ? qtd : 1;
+  }
   if(tipoSelecionado === 'pix'){
     novo.pix_chave = document.getElementById('pr-pixchave').value;
     novo.pix_qrcode_url = uploads.qrcode;
@@ -328,6 +350,9 @@ async function salvarPresente(){
   document.getElementById('pr-valor').value = '';
   document.getElementById('pr-frase').value = '';
   document.getElementById('pr-pixchave').value = '';
+  document.getElementById('pr-multiplas').checked = false;
+  document.getElementById('pr-quantidade').value = '';
+  document.getElementById('campos-quantidade').style.display = 'none';
   uploads.presente = null; uploads.qrcode = null;
   document.getElementById('preview-presente').style.display = 'none';
   document.getElementById('preview-qrcode').style.display = 'none';
@@ -342,16 +367,23 @@ async function carregarPresentes(){
 
   cont.innerHTML = '';
   for(const p of presentes){
+    const { count: reservado } = await supabaseClient.from('reservas').select('*', { count:'exact', head:true }).eq('presente_id', p.id);
+    const qtdTotal = p.quantidade_total || 1;
     const div = document.createElement('div');
     div.className = 'gift-row';
-    const statusLabel = { disponivel:'Livre', reservado:'Reservado', pago:'Recebido' }[p.status];
+    const statusLabel = qtdTotal > 1
+      ? `${reservado||0} de ${qtdTotal} escolhidos`
+      : ({ disponivel:'Livre', reservado:'Reservado', pago:'Recebido' }[p.status]);
+    const statusClasse = qtdTotal > 1
+      ? ((reservado||0) >= qtdTotal ? 'status-reservado' : 'status-disponivel')
+      : `status-${p.status}`;
     div.innerHTML = `
       <div class="gift-thumb" style="background-image:url('${p.foto_url||''}')"></div>
       <div class="gift-info">
         <div class="name">${p.nome}</div>
         <div class="who">${p.tipo==='pix'?'Contribuição via Pix':'Reserva'} ${p.valor?('· '+p.valor):''}</div>
       </div>
-      <div class="status-pill status-${p.status}">${statusLabel}</div>
+      <div class="status-pill ${statusClasse}">${statusLabel}</div>
       <button class="btn-danger" onclick="excluirPresente('${p.id}')">Excluir</button>
     `;
     cont.appendChild(div);
