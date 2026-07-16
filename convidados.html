@@ -113,14 +113,24 @@ async function carregar(){
   `;
 
   for(const p of data){
-    const disponivel = p.status === 'disponivel';
-    const acaoLabel = p.tipo === 'pix' ? 'Ver Pix' : (disponivel ? 'Escolher' : 'Já escolhido');
+    const qtdTotal = p.quantidade_total || 1;
+    const qtdReservada = p.quantidade_reservada || 0;
+    const disponivel = qtdTotal > 1 ? (qtdReservada < qtdTotal) : (p.status === 'disponivel');
+    let acaoLabel;
+    if(p.tipo === 'pix'){ acaoLabel = 'Ver Pix'; }
+    else if(!disponivel){ acaoLabel = 'Esgotado'; }
+    else { acaoLabel = 'Escolher'; }
+
+    const legendaQtd = (p.tipo !== 'pix' && qtdTotal > 1)
+      ? `<div class="price">${qtdReservada} de ${qtdTotal} escolhidos</div>`
+      : `<div class="price">${p.valor || (p.tipo==='pix' ? 'Contribua com qualquer valor' : '')}</div>`;
+
     html += `
       <div class="guest-card">
         <div class="guest-card-img" style="background-image:url('${p.foto_url||''}')"></div>
         <div class="guest-card-body">
           <div class="name" style="font-family:'${fonte}',serif;">${p.presente_nome}</div>
-          <div class="price">${p.valor || (p.tipo==='pix' ? 'Contribua com qualquer valor' : '')}</div>
+          ${legendaQtd}
           <button class="guest-btn ${!disponivel && p.tipo!=='pix' ? 'taken':''}"
             style="${disponivel || p.tipo==='pix' ? `background:${corPrimaria}` : ''}"
             ${(!disponivel && p.tipo!=='pix') ? 'disabled' : ''}
@@ -147,7 +157,10 @@ function abrirAcao(presente){
     document.getElementById('pix-chave').textContent = presente.pix_chave || '';
     document.getElementById('modal-pix').classList.add('show');
   } else {
-    if(presente.status !== 'disponivel') return;
+    const qtdTotal = presente.quantidade_total || 1;
+    const qtdReservada = presente.quantidade_reservada || 0;
+    const disponivel = qtdTotal > 1 ? (qtdReservada < qtdTotal) : (presente.status === 'disponivel');
+    if(!disponivel) return;
     document.getElementById('modal-reserva-titulo').textContent = 'Reservar "' + presente.presente_nome + '"';
     document.getElementById('rv-nome').value = '';
     document.getElementById('rv-whatsapp').value = '';
