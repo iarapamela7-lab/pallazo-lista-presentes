@@ -43,7 +43,8 @@ h1{font-family:'Fraunces',serif; font-weight:600;}
 
 .upload-box{border:1.5px dashed var(--line); border-radius:10px; padding:16px; text-align:center; color:var(--sub); font-size:12.5px; cursor:pointer; position:relative;}
 .upload-box input[type="file"]{position:absolute; inset:0; opacity:0; cursor:pointer;}
-.upload-preview{width:100%; height:90px; object-fit:cover; border-radius:8px; margin-top:8px;}
+.upload-preview{width:140px; aspect-ratio:1/1; object-fit:cover; border-radius:8px; margin-top:8px;}
+.upload-preview-capa{width:100%; aspect-ratio:1920/1080; object-fit:cover; border-radius:8px; margin-top:8px;}
 .upload-preview-qr{width:110px; height:110px; object-fit:contain; border-radius:8px; margin-top:8px; background:#fff; border:1px solid var(--line); padding:6px;}
 
 .type-toggle{display:flex; gap:8px; margin-bottom:14px;}
