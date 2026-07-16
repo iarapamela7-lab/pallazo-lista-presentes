@@ -54,12 +54,21 @@ async function carregar(){
   `;
 
   for(const p of data){
-    const statusLabel = { disponivel:'Livre', reservado:'Reservado', pago:'Recebido' }[p.status];
-    const quem = p.status === 'disponivel'
-      ? 'Ainda disponível'
-      : (p.tipo === 'pix'
-          ? 'Contribuição via Pix'
-          : `${p.nome_convidado || '—'}${p.whatsapp ? ' · ' + p.whatsapp : ''}`);
+    const qtdTotal = p.quantidade_total || 1;
+    const qtdReservada = p.quantidade_reservada || 0;
+    let statusLabel, quem, statusClasse;
+
+    if(qtdTotal > 1){
+      statusLabel = `${qtdReservada} de ${qtdTotal}`;
+      statusClasse = qtdReservada >= qtdTotal ? 'status-reservado' : (qtdReservada > 0 ? 'status-reservado' : 'status-disponivel');
+      quem = qtdReservada > 0 ? (p.reservas_lista || '—') : 'Ainda disponível';
+    } else {
+      statusLabel = { disponivel:'Livre', reservado:'Reservado', pago:'Recebido' }[p.status];
+      statusClasse = `status-${p.status}`;
+      quem = p.status === 'disponivel'
+        ? 'Ainda disponível'
+        : (p.tipo === 'pix' ? 'Contribuição via Pix' : (p.reservas_lista || '—'));
+    }
 
     html += `
       <div class="gift-row">
@@ -68,7 +77,7 @@ async function carregar(){
           <div class="name">${p.presente_nome}</div>
           <div class="who">${quem}</div>
         </div>
-        <div class="status-pill status-${p.status}">${statusLabel}</div>
+        <div class="status-pill ${statusClasse}">${statusLabel}</div>
       </div>
     `;
   }
