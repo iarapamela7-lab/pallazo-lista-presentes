@@ -55,6 +55,16 @@
     </div>
     <div class="form-row">
       <div class="field">
+        <label>Data do evento (opcional)</label>
+        <input type="date" id="ev-data">
+        <p style="font-size:11.5px; color:var(--sub); margin-top:6px;">
+          Se preenchida, essa lista é apagada automaticamente 7 dias depois dessa data.
+        </p>
+      </div>
+      <div></div>
+    </div>
+    <div class="form-row">
+      <div class="field">
         <label>Imagem de capa</label>
         <div class="upload-box" id="box-capa">
           📷 Clique para enviar (formato paisagem, 1920×1080 px)
@@ -132,6 +142,14 @@
 
   <div class="section-title">Presentes cadastrados</div>
   <div id="lista-presentes"><div class="empty">Nenhum presente ainda.</div></div>
+
+  <div class="section-title">Zona de risco</div>
+  <div class="card" style="border-color:#F0D8D5;">
+    <p style="font-size:13px; color:var(--sub); margin-bottom:12px;">
+      Excluir o evento apaga também todos os presentes e reservas dele. Essa ação não pode ser desfeita.
+    </p>
+    <button class="btn-danger" style="padding:10px 16px; font-size:13px;" onclick="excluirEvento()">Excluir este evento</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -198,10 +216,14 @@ async function carregarEventos(){
 
     const div = document.createElement('div');
     div.className = 'event-card';
+    const dataLabel = ev.data_evento
+      ? `<div class="event-meta" style="margin-bottom:2px;">📅 ${new Date(ev.data_evento+'T00:00:00').toLocaleDateString('pt-BR')} · exclusão automática 7 dias depois</div>`
+      : '';
     div.innerHTML = `
       <div class="event-cover" style="background-image:url('${ev.imagem_capa_url||''}')"></div>
       <div class="event-body">
         <h3>${ev.nome_evento}</h3>
+        ${dataLabel}
         <div class="event-meta">${total||0} presentes · ${escolhidos||0} escolhidos</div>
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
         <div class="event-links">
@@ -209,6 +231,7 @@ async function carregarEventos(){
           <button class="link-chip" onclick="event.stopPropagation(); copiarLink('${ev.slug_anfitriao}','anfitriao')">🔗 anfitrião</button>
           <button class="link-chip" onclick="event.stopPropagation(); copiarLink('${ev.slug_convidados}','convidados')">🔗 convidados</button>
         </div>
+        <button class="link-chip" style="margin-top:8px; color:#B8483F; border-color:#F0D8D5;" onclick="event.stopPropagation(); excluirEventoRapido('${ev.id}','${ev.nome_evento.replace(/'/g,"\\'")}')">🗑️ Excluir evento</button>
       </div>`;
     cont.appendChild(div);
   }
@@ -238,6 +261,7 @@ async function abrirEditor(id){
 
   document.getElementById('ev-nome').value = ev.nome_evento || '';
   document.getElementById('ev-mensagem').value = ev.mensagem || '';
+  document.getElementById('ev-data').value = ev.data_evento || '';
   document.getElementById('ev-fonte').value = ev.fonte || 'Fraunces';
   document.getElementById('ev-cor1').value = ev.cor_primaria || '#5B6E4F';
   document.getElementById('ev-cor1-color').value = ev.cor_primaria || '#5B6E4F';
@@ -272,6 +296,7 @@ async function salvarEvento(){
   const upd = {
     nome_evento: document.getElementById('ev-nome').value,
     mensagem: document.getElementById('ev-mensagem').value,
+    data_evento: document.getElementById('ev-data').value || null,
     fonte: document.getElementById('ev-fonte').value,
     cor_primaria: document.getElementById('ev-cor1').value,
     cor_secundaria: document.getElementById('ev-cor2').value,
@@ -367,7 +392,8 @@ async function carregarPresentes(){
 
   cont.innerHTML = '';
   for(const p of presentes){
-    const { count: reservado } = await supabaseClient.from('reservas').select('*', { count:'exact', head:true }).eq('presente_id', p.id);
+    const { data: reservasDoPresente } = await supabaseClient.from('reservas').select('quantidade').eq('presente_id', p.id);
+    const reservado = (reservasDoPresente || []).reduce((soma, r) => soma + (r.quantidade || 1), 0);
     const qtdTotal = p.quantidade_total || 1;
     const div = document.createElement('div');
     div.className = 'gift-row';
@@ -394,6 +420,27 @@ async function excluirPresente(id){
   if(!confirm('Excluir este presente?')) return;
   await supabaseClient.from('presentes').delete().eq('id', id);
   carregarPresentes();
+}
+
+async function excluirEvento(){
+  const confirmacao1 = confirm(`Tem certeza que quer excluir "${eventoAtual.nome_evento}"? Todos os presentes e reservas serão apagados junto.`);
+  if(!confirmacao1) return;
+  const confirmacao2 = confirm('Essa ação não pode ser desfeita. Excluir mesmo assim?');
+  if(!confirmacao2) return;
+
+  const { error } = await supabaseClient.from('eventos').delete().eq('id', eventoAtual.id);
+  if(error){ mostrarToast('Erro ao excluir evento.'); return; }
+  mostrarToast('Evento excluído.');
+  voltarParaEventos();
+}
+
+async function excluirEventoRapido(id, nome){
+  const confirmacao = confirm(`Excluir "${nome}"? Isso apaga todos os presentes e reservas dele. Não pode ser desfeito.`);
+  if(!confirmacao) return;
+  const { error } = await supabaseClient.from('eventos').delete().eq('id', id);
+  if(error){ mostrarToast('Erro ao excluir evento.'); return; }
+  mostrarToast('Evento excluído.');
+  carregarEventos();
 }
 
 verificarSessao();
